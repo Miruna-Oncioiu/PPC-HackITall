@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PPC Energy Monitor</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --teal:#77B5B6;--teal-dark:#5a9ea0;--teal-darker:#4a8e90;
+      --bg:#f0fafa;--white:#fff;--text:#1e293b;--muted:#94a3b8;
+      --red:#ef4444;--yellow:#f59e0b;--green:#10b981;--orange:#f97316;
+    }
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    .hidden{display:none!important}
+
+    /* ── SPLASH ── */
+    #screen-splash{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;cursor:pointer;background:var(--bg);position:relative;overflow:hidden}
+    #splash-title{font-size:clamp(6rem,20vw,12rem);font-weight:900;color:var(--teal);letter-spacing:-.05em;font-style:italic;user-select:none;transition:transform .3s,color .3s,filter .3s;z-index:10;position:relative}
+    #splash-title:hover{transform:scale(1.15);color:#38bdf8;filter:drop-shadow(0 0 40px rgba(56,189,248,.6))}
+    #splash-sub{margin-top:2rem;font-size:1.1rem;font-weight:900;color:#475569;font-style:italic;letter-spacing:.4em;text-transform:uppercase;user-select:none;animation:bounce 1.5s infinite;z-index:10;position:relative}
+    @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+    .particle{position:absolute;border-radius:50%;pointer-events:none;z-index:50}
+    @keyframes explode{0%{transform:translate(-50%,-50%) scale(.1);opacity:0}10%{opacity:1}100%{transform:translate(calc(-50% + var(--tx)),calc(-50% + var(--ty))) scale(7);opacity:0}}
+
+    /* ── CARD BOX ── */
+    .card-box{background:var(--white);border:4px solid var(--teal);border-radius:4rem;box-shadow:0 25px 50px rgba(0,0,0,.12);width:100%;max-width:650px;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;padding:3rem;animation:zoomIn .4s ease}
+    @keyframes zoomIn{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+    .card-title{font-size:clamp(2.5rem,6vw,3.5rem);font-weight:900;font-style:italic;color:var(--teal);text-transform:uppercase;letter-spacing:-.04em;text-align:center;user-select:none}
+
+    /* ── ROLE ── */
+    #screen-role{display:flex;align-items:center;justify-content:center;height:100vh;padding:1.5rem}
+    .role-cards{display:flex;flex-wrap:wrap;gap:2.5rem;align-items:center;justify-content:center;flex:1;margin-top:1rem}
+    .role-card{width:260px;height:260px;background:#f8fafc;border:4px solid transparent;border-radius:3rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;cursor:pointer;transition:all .3s;box-shadow:0 4px 20px rgba(0,0,0,.08);outline:none}
+    .role-card:hover{transform:scale(1.1);border-color:var(--teal);background:var(--white);box-shadow:0 0 40px rgba(119,181,182,.35)}
+    .role-icon{font-size:2.8rem;transition:transform .3s}
+    .role-card:hover .role-icon{transform:scale(1.1)}
+    .role-label{font-size:1.5rem;font-weight:900;font-style:italic;color:var(--teal);text-transform:uppercase;letter-spacing:-.04em}
+
+    /* ── AUTH ── */
+    #screen-auth{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;padding:1.5rem;gap:2rem}
+    .auth-box{justify-content:space-between}
+    .auth-subtitle{font-size:.75rem;font-weight:900;text-transform:uppercase;letter-spacing:.2em;color:var(--text);text-align:center}
+    .auth-form{display:flex;flex-direction:column;gap:2rem;width:100%;max-width:380px;margin:auto;flex:1;justify-content:center}
+    .input-wrap{position:relative}
+    .input-icon{position:absolute;left:1.25rem;top:50%;transform:translateY(-50%);font-size:1.25rem;pointer-events:none}
+    .auth-input{width:100%;padding:1.5rem 1.5rem 1.5rem 3.5rem;border-radius:1.5rem;background:var(--bg);border:none;outline:none;font-size:1rem;font-weight:700;color:var(--text);font-style:italic;box-shadow:inset 0 2px 8px rgba(0,0,0,.06);transition:box-shadow .2s;font-family:inherit}
+    .auth-input::placeholder{color:#94a3b8}
+    .auth-input:focus{box-shadow:inset 0 2px 8px rgba(0,0,0,.06),0 0 0 3px rgba(119,181,182,.3)}
+    .auth-btn{width:100%;padding:1.5rem;border-radius:1.5rem;background:var(--teal-dark);color:white;font-weight:900;font-size:1rem;text-transform:uppercase;letter-spacing:.15em;border:none;cursor:pointer;box-shadow:0 8px 24px rgba(90,158,160,.35);transition:all .2s;font-family:inherit}
+    .auth-btn:hover{background:var(--teal-darker);transform:scale(1.03)}
+    .auth-toggle{font-size:.65rem;font-weight:900;text-transform:uppercase;letter-spacing:.2em;color:var(--muted);cursor:pointer;text-decoration:underline;text-align:center;user-select:none;margin-bottom:.5rem}
+    .auth-toggle:hover{color:var(--teal)}
+    .back-link{font-size:.7rem;font-weight:900;text-transform:uppercase;letter-spacing:.25em;color:var(--muted);cursor:pointer;background:rgba(255,255,255,.5);padding:.75rem 1.5rem;border-radius:9999px;border:1px solid transparent;transition:all .3s;user-select:none}
+    .back-link:hover{color:var(--teal);border-color:rgba(119,181,182,.3);transform:scale(1.08)}
+
+    /* ── NAVBAR ── */
+    .navbar{background:var(--teal);color:white;padding:1.25rem 2.5rem;display:flex;justify-content:space-between;align-items:center;box-shadow:0 4px 20px rgba(0,0,0,.1);position:relative;z-index:1000}
+    .navbar-brand{font-size:.7rem;font-weight:900;text-transform:uppercase;letter-spacing:.2em}
+    .nav-btn{background:rgba(255,255,255,.2);border:none;color:white;padding:.5rem 1rem;border-radius:.5rem;cursor:pointer;font-size:.7rem;font-weight:900;text-transform:uppercase;transition:background .2s;font-family:inherit}
+    .nav-btn:hover{background:rgba(255,255,255,.35)}
+    .profile-btn{display:flex;align-items:center;gap:.75rem;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.2);color:white;padding:.75rem 1.5rem;border-radius:1rem;cursor:pointer;font-size:.85rem;font-weight:900;text-transform:uppercase;transition:background .2s;user-select:none;font-family:inherit}
+    .profile-btn:hover{background:rgba(255,255,255,.3)}
+    .chevron{transition:transform .3s;font-size:.75rem}.chevron.open{transform:rotate(180deg)}
+    .dropdown{position:absolute;top:calc(100% + 1rem);right:0;min-width:300px;background:white;box-shadow:0 25px 50px rgba(0,0,0,.15);border:1px solid #f1f5f9;z-index:2000;animation:zoomIn .2s ease}
+    .dropdown-header{margin:1rem;padding:1.5rem;border:1px solid #f1f5f9;background:#f8fafc}
+    .dropdown-label{font-size:.6rem;font-weight:900;color:var(--teal);text-transform:uppercase;letter-spacing:.2em;margin-bottom:.25rem}
+    .dropdown-name{font-size:1rem;font-weight:900;color:var(--text);font-style:italic}
+    .dropdown-item{width:100%;display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem;background:none;border:none;cursor:pointer;transition:background .2s;font-family:inherit;text-align:left}
+    .dropdown-item:hover{background:#f8fafc}
+    .dropdown-item.danger:hover{background:#fff5f5}
+    .dropdown-item-icon{width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:1.2rem}
+    .dropdown-item-text{font-size:.8rem;font-weight:900;color:var(--text);text-transform:uppercase}
+    .dropdown-item.danger .dropdown-item-text{color:var(--red);font-style:italic}
+    .dropdown-divider{height:1px;background:#f1f5f9;margin:.25rem 0}
+    .pulse-dot{width:8px;height:8px;background:var(--red);border-radius:50%;animation:pulse 1.5s infinite;flex-shrink:0}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+    /* ── GRID SCREEN ── */
+    #screen-grid{background:var(--bg);min-height:100vh}
+    .page-content{padding:2.5rem;max-width:1400px;margin:0 auto}
+    .report-btn{display:flex;align-items:center;gap:1rem;background:var(--text);color:white;padding:1.5rem 2.5rem;border-radius:1.5rem;border:none;border-left:12px solid var(--teal);cursor:pointer;box-shadow:0 8px 30px rgba(0,0,0,.15);margin-bottom:2.5rem;transition:background .2s;font-family:inherit}
+    .report-btn:hover{background:#334155}
+    .report-btn-icon{background:rgba(119,181,182,.2);padding:.75rem;border-radius:.75rem;font-size:1.2rem;transition:background .2s}
+    .report-btn:hover .report-btn-icon{background:var(--teal)}
+    .report-label{font-size:.6rem;font-weight:900;text-transform:uppercase;letter-spacing:.3em;color:var(--teal)}
+    .report-title{font-size:1.2rem;font-weight:900;text-transform:uppercase;font-style:italic;color:var(--teal)}
+    .section-header{border-bottom:4px solid var(--teal);padding-bottom:1rem;margin-bottom:3rem}
+    .section-title{font-size:clamp(2rem,5vw,3rem);font-weight:900;text-transform:uppercase;font-style:italic;letter-spacing:-.04em}
+    .section-sub{font-size:.65rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3em;margin-top:.5rem;font-style:italic}
+    .parks-grid{display:flex;flex-direction:column;gap:4rem}
+    .park-card{background:white;padding:2rem;border-radius:2rem;box-shadow:0 10px 40px rgba(0,0,0,.08);border:1px solid #f1f5f9}
+    .park-card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.5rem}
+    .park-badge{background:var(--teal);color:white;padding:.25rem 1rem;border-radius:9999px;font-size:.6rem;font-weight:900;text-transform:uppercase;letter-spacing:.2em;font-style:italic;display:inline-block;margin-bottom:.5rem}
+    .park-name{font-size:1.5rem;font-weight:900;text-transform:uppercase}
+    .park-stats{display:flex;gap:1.5rem;font-size:.7rem;font-weight:900;text-transform:uppercase;flex-wrap:wrap}
+    .stat-green{color:var(--green)}.stat-yellow{color:var(--yellow)}.stat-red{color:var(--red)}.stat-orange{color:var(--orange)}
+    .map-container{height:420px;border-radius:1.5rem;overflow:hidden;border:3px solid #e2e8f0;position:relative}
+    .map-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(240,250,250,.92);font-weight:900;text-transform:uppercase;font-size:.85rem;color:var(--muted);z-index:500;border-radius:1.5rem}
+    .map-legend{display:flex;gap:1.5rem;margin-top:1rem;font-size:.65rem;font-weight:900;text-transform:uppercase;flex-wrap:wrap}
+    .legend-dot{width:12px;height:12px;border-radius:50%;display:inline-block;margin-right:.4rem;vertical-align:middle}
+    .leaflet-popup-content-wrapper{border-radius:1rem!important;box-shadow:0 10px 30px rgba(0,0,0,.15)!important}
+    .popup-title{font-size:.8rem;font-weight:900;text-transform:uppercase;color:var(--text);margin-bottom:.6rem;border-bottom:2px solid #f1f5f9;padding-bottom:.4rem}
+    .popup-row{display:flex;justify-content:space-between;font-size:.72rem;margin:.25rem 0}
+    .popup-key{color:var(--muted);font-weight:700}.popup-val{font-weight:900;color:var(--text)}
+    .popup-badge{display:inline-block;padding:.2rem .75rem;border-radius:9999px;font-size:.6rem;font-weight:900;text-transform:uppercase;margin-top:.5rem;cursor:pointer}
+    .badge-GREEN{background:#dcfce7;color:#16a34a}.badge-YELLOW{background:#fef9c3;color:#d97706}
+    .badge-RED{background:#fee2e2;color:#dc2626}.badge-ORANGE{background:#ffedd5;color:#c2410c}
+    .no-parks{text-align:center;padding:8rem 2rem}
+    .no-parks-title{font-size:1.5rem;font-weight:900;color:#cbd5e1;text-transform:uppercase;font-style:italic}
+
+    /* ── REPORT SCREEN ── */
+    #screen-report{background:var(--bg);min-height:100vh}
+    .rep-content{padding:2.5rem;max-width:1400px;margin:0 auto}
+    .rep-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:3rem;flex-wrap:wrap;gap:1rem}
+    .rep-header h1{font-size:2.5rem;font-weight:900;text-transform:uppercase;font-style:italic;letter-spacing:-.04em}
+    .rep-header p{font-size:.7rem;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.2em;margin-top:.25rem}
+    .rep-days-badge{background:var(--teal);color:white;padding:.5rem 1.5rem;border-radius:9999px;font-size:.75rem;font-weight:900;text-transform:uppercase}
+    .park-report{background:white;border-radius:2rem;box-shadow:0 10px 40px rgba(0,0,0,.08);margin-bottom:3rem;overflow:hidden}
+    .park-rep-header{background:linear-gradient(135deg,var(--teal),var(--teal-dark));color:white;padding:2rem 2.5rem}
+    .park-rep-name{font-size:1.8rem;font-weight:900;text-transform:uppercase;letter-spacing:-.03em}
+    .park-rep-id{font-size:.65rem;font-weight:900;opacity:.8;letter-spacing:.2em;margin-top:.25rem}
+    .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1.5rem;padding:2rem 2.5rem;border-bottom:1px solid #f1f5f9}
+    .kpi-card{text-align:center;padding:1.5rem;background:#f8fafc;border-radius:1.25rem}
+    .kpi-value{font-size:2rem;font-weight:900;letter-spacing:-.04em}
+    .kpi-label{font-size:.6rem;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:.15em;margin-top:.25rem}
+    .kpi-teal{color:var(--teal)}.kpi-green{color:var(--green)}.kpi-yellow{color:var(--yellow)}
+    .kpi-red{color:var(--red)}.kpi-orange{color:var(--orange)}
+    .rep-section{padding:2rem 2.5rem;border-bottom:1px solid #f1f5f9}
+    .rep-section:last-child{border-bottom:none}
+    .rep-section-title{font-size:1rem;font-weight:900;text-transform:uppercase;letter-spacing:.1em;margin-bottom:1.25rem;display:flex;align-items:center;gap:.5rem}
+    .data-table{width:100%;border-collapse:collapse;font-size:.8rem}
+    .data-table thead th{background:#f8fafc;padding:.85rem 1rem;font-size:.6rem;font-weight:900;text-transform:uppercase;letter-spacing:.15em;color:var(--teal);text-align:left;border-bottom:2px solid #e2e8f0;white-space:nowrap}
+    .data-table tbody tr{border-bottom:1px solid #f8fafc;transition:background .15s;cursor:pointer}
+    .data-table tbody tr:hover{background:#f0fafa}
+    .data-table td{padding:.85rem 1rem;font-weight:700;color:var(--text)}
+    .data-table td.mono{font-family:monospace;font-size:.75rem;color:#64748b}
+    .status-pill{display:inline-block;padding:.2rem .75rem;border-radius:9999px;font-size:.6rem;font-weight:900;text-transform:uppercase}
+    .pill-GREEN{background:#dcfce7;color:#16a34a}.pill-YELLOW{background:#fef9c3;color:#d97706}
+    .pill-RED{background:#fee2e2;color:#dc2626}.pill-ORANGE{background:#ffedd5;color:#c2410c}
+    .avail-bar-wrap{display:flex;align-items:center;gap:.5rem}
+    .avail-bar{height:6px;border-radius:9999px;background:#e2e8f0;flex:1;overflow:hidden}
+    .avail-bar-fill{height:100%;border-radius:9999px}
+    /* Charts */
+    .chart-wrap{height:220px;display:flex;align-items:flex-end;gap:2px;padding:.5rem 0;overflow-x:auto}
+    .chart-bar-g{flex:0 0 auto;min-width:20px;display:flex;flex-direction:column;align-items:center;gap:2px}
+    .chart-bar{width:100%;border-radius:2px 2px 0 0;min-height:2px;transition:opacity .2s}
+    .chart-bar:hover{opacity:.75}
+    .chart-label{font-size:.4rem;font-weight:700;color:var(--muted);writing-mode:vertical-lr;transform:rotate(180deg);max-height:40px;overflow:hidden;white-space:nowrap}
+    .chart-legend-row{display:flex;gap:1.5rem;margin-top:.75rem;font-size:.65rem;font-weight:700;color:var(--muted);flex-wrap:wrap}
+    .cleg-dot{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:.35rem;vertical-align:middle}
+    /* Scatter */
+    .scatter-wrap{height:240px;position:relative;border:1px solid #e2e8f0;border-radius:1rem;overflow:hidden;background:#f8fafc}
+    .scatter-dot{position:absolute;width:6px;height:6px;border-radius:50%;background:rgba(59,130,246,.5);transform:translate(-50%,-50%)}
+    .scatter-dot:hover{background:rgba(59,130,246,1);z-index:10}
+    /* Rep loading */
+    .rep-loading{text-align:center;padding:6rem 2rem}
+    .rep-spinner{font-size:3rem;animation:spin 1.5s linear infinite;display:block;margin-bottom:1rem}
+    @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    .rep-loading-text{font-size:.85rem;font-weight:900;text-transform:uppercase;letter-spacing:.2em;color:var(--muted)}
+
+    /* ── TURBINE DETAIL ── */
+    #screen-turbine{background:var(--bg);min-height:100vh}
+    .turb-content{padding:2.5rem;max-width:1300px;margin:0 auto}
+    .turb-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2rem;flex-wrap:wrap;gap:1rem}
+    .turb-id{font-size:.65rem;font-weight:900;color:var(--teal);text-transform:uppercase;letter-spacing:.2em;margin-bottom:.4rem}
+    .turb-name{font-size:2.5rem;font-weight:900;letter-spacing:-.04em;font-style:italic}
+    .turb-meta{font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-top:.3rem}
+    .turb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem;margin-bottom:2rem}
+    .turb-card{background:white;border-radius:1.5rem;padding:1.75rem;box-shadow:0 4px 20px rgba(0,0,0,.06);border:1px solid #f1f5f9}
+    .turb-card-title{font-size:.7rem;font-weight:900;text-transform:uppercase;letter-spacing:.15em;color:var(--muted);margin-bottom:1.25rem;display:flex;align-items:center;gap:.4rem}
+    .metric-row{display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid #f8fafc}
+    .metric-row:last-child{border-bottom:none}
+    .metric-key{font-size:.75rem;font-weight:700;color:#64748b}
+    .metric-val{font-size:.9rem;font-weight:900;color:var(--text)}
+    /* Thermal risk gauge */
+    .risk-gauge{position:relative;width:140px;height:70px;margin:0 auto 1rem}
+    .risk-gauge svg{width:100%;height:100%}
+    .risk-score{position:absolute;bottom:0;left:50%;transform:translateX(-50%);font-size:1.6rem;font-weight:900}
+    .risk-label{text-align:center;font-size:.6rem;font-weight:900;text-transform:uppercase;letter-spacing:.15em;color:var(--muted)}
+    .temp-row{display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;font-size:.75rem}
+    .temp-name{font-weight:700;color:#64748b}
+    .temp-val{font-weight:900}
+    .temp-bar-wrap{display:flex;align-items:center;gap:.5rem;flex:1;margin:0 .75rem}
+    .temp-bar{height:4px;border-radius:2px;background:#e2e8f0;flex:1;overflow:hidden}
+    .temp-fill{height:100%;border-radius:2px;transition:width .5s}
+    /* Notifications table */
+    .notif-row{display:grid;grid-template-columns:140px 80px 1fr;gap:.75rem;padding:.75rem;border-bottom:1px solid #f8fafc;font-size:.75rem;align-items:start}
+    .notif-row:hover{background:#f8fafc}
+    .notif-ts{font-family:monospace;color:var(--muted);font-size:.65rem}
+    .notif-msg{color:var(--text);font-weight:600}
+
+    /* ── ADMIN ── */
+    #screen-admin{background:var(--bg);min-height:100vh}
+    .admin-content{max-width:900px;margin:0 auto;padding:2.5rem}
+    .admin-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:2.5rem}
+    .admin-title{font-size:2.5rem;font-weight:900;text-transform:uppercase;font-style:italic;letter-spacing:-.04em}
+    .admin-sub{font-size:.65rem;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.1em;margin-top:.25rem}
+    .back-btn{background:var(--teal);color:white;padding:1rem 2.5rem;border-radius:2rem;border:none;font-weight:900;font-size:.7rem;text-transform:uppercase;cursor:pointer;font-family:inherit}
+    .back-btn:hover{background:var(--teal-dark)}
+    .admin-table-wrap{background:white;border-radius:3.5rem;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.08)}
+    .admin-table{width:100%;border-collapse:collapse}
+    .admin-table thead{background:#f8fafc}
+    .admin-table thead th{padding:2rem 2.5rem;font-size:.6rem;font-weight:900;text-transform:uppercase;letter-spacing:.2em;color:var(--teal);text-align:left}
+    .admin-table thead th:last-child{text-align:right}.admin-table thead th:nth-child(2){text-align:center}
+    .admin-table tbody tr{border-top:1px solid #f8fafc;transition:background .2s}
+    .admin-table tbody tr:hover{background:#f8fafc}
+    .admin-table td{padding:2rem 2.5rem}
+    .admin-table td:nth-child(2){text-align:center}.admin-table td:last-child{text-align:right}
+    .company-name{font-size:1.2rem;font-weight:900;font-style:italic}
+    .company-parks{font-size:.7rem;font-weight:700;color:#64748b;text-transform:uppercase}
+    .badge-active{background:#dcfce7;color:#16a34a;padding:.35rem 1.5rem;border-radius:9999px;font-size:.6rem;font-weight:900;text-transform:uppercase;display:inline-block}
+    .loading-text{padding:5rem;text-align:center;font-weight:900;text-transform:uppercase;color:#cbd5e1}
+
+    /* ── NOTIFICATION DRAWER ── */
+    #notif-drawer{position:fixed;top:0;right:0;width:420px;max-width:100vw;height:100vh;background:white;z-index:9999;box-shadow:-8px 0 40px rgba(0,0,0,.18);transform:translateX(110%);transition:transform .35s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column}
+    #notif-drawer.open{transform:translateX(0)}
+    .notif-drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9998;opacity:0;pointer-events:none;transition:opacity .35s}
+    .notif-drawer-overlay.open{opacity:1;pointer-events:all}
+    .notif-drawer-header{background:var(--teal);color:white;padding:1.5rem 1.75rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+    .notif-drawer-title{font-size:1rem;font-weight:900;text-transform:uppercase;letter-spacing:.1em}
+    .notif-drawer-close{background:rgba(255,255,255,.25);border:none;color:white;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;transition:background .2s}
+    .notif-drawer-close:hover{background:rgba(255,255,255,.4)}
+    .notif-drawer-body{flex:1;overflow-y:auto;padding:1.25rem}
+    .notif-item{display:flex;gap:1rem;padding:1rem;border-radius:1rem;margin-bottom:.75rem;background:#f8fafc;border-left:4px solid #e2e8f0;cursor:pointer;transition:background .15s}
+    .notif-item:hover{background:#f0fafa}
+    .notif-item.RED{border-left-color:#ef4444}
+    .notif-item.YELLOW{border-left-color:#f59e0b}
+    .notif-item.ORANGE{border-left-color:#f97316}
+    .notif-item-icon{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+    .notif-item-icon.RED{background:#fee2e2}.notif-item-icon.YELLOW{background:#fef9c3}.notif-item-icon.ORANGE{background:#ffedd5}
+    .notif-item-tid{font-size:.65rem;font-weight:900;color:var(--teal);text-transform:uppercase;letter-spacing:.1em}
+    .notif-item-reason{font-size:.8rem;font-weight:700;color:var(--text);margin:.2rem 0}
+    .notif-item-warn{font-size:.68rem;color:#f59e0b;font-weight:600}
+    .notif-item-ts{font-size:.6rem;color:var(--muted);font-family:monospace}
+    .notif-count-badge{background:#ef4444;color:white;border-radius:9999px;font-size:.6rem;font-weight:900;padding:.1rem .5rem;margin-left:.4rem;vertical-align:middle}
+    .notif-empty{text-align:center;padding:4rem 1rem}
+    .notif-empty-icon{font-size:3rem;display:block;margin-bottom:.75rem}
+    .notif-empty-text{font-size:.8rem;font-weight:900;text-transform:uppercase;color:#cbd5e1}
+
+    /* ── SEARCH BAR ── */
+    .search-bar-wrap{display:flex;gap:.75rem;align-items:center;margin-bottom:2rem;background:white;border-radius:1.25rem;padding:.75rem 1.25rem;box-shadow:0 4px 20px rgba(0,0,0,.07);border:2px solid transparent;transition:border-color .2s}
+    .search-bar-wrap:focus-within{border-color:var(--teal)}
+    .search-bar-wrap input{flex:1;border:none;outline:none;font-size:.9rem;font-weight:700;color:var(--text);background:transparent;font-family:inherit}
+    .search-bar-wrap input::placeholder{color:#cbd5e1;font-weight:600}
+    .search-bar-btn{background:var(--teal);color:white;border:none;padding:.5rem 1.25rem;border-radius:.75rem;font-size:.7rem;font-weight:900;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:background .2s;white-space:nowrap}
+    .search-bar-btn:hover{background:var(--teal-dark)}
+    .search-results-drop{position:absolute;top:calc(100% + .5rem);left:0;right:0;background:white;border-radius:1rem;box-shadow:0 12px 40px rgba(0,0,0,.12);z-index:500;overflow:hidden;border:1px solid #f1f5f9;animation:zoomIn .15s ease}
+    .search-result-item{padding:.85rem 1.25rem;cursor:pointer;font-size:.8rem;font-weight:700;display:flex;justify-content:space-between;align-items:center;transition:background .15s;border-bottom:1px solid #f8fafc}
+    .search-result-item:last-child{border-bottom:none}
+    .search-result-item:hover{background:#f0fafa}
+    .search-result-id{font-family:monospace;color:var(--teal);font-size:.75rem;font-weight:900}
+    .search-result-park{font-size:.6rem;color:var(--muted);font-weight:700;text-transform:uppercase}
+    .search-no-result{padding:1.5rem;text-align:center;color:#cbd5e1;font-size:.8rem;font-weight:700}
+
+    /* ── FILTER CHIPS (stat badges clickable) ── */
+    .stat-chip{cursor:pointer;padding:.25rem .75rem;border-radius:9999px;border:2px solid transparent;transition:all .2s;user-select:none}
+    .stat-chip:hover{transform:scale(1.08)}
+    .stat-chip.active-filter{border-color:currentColor;background:rgba(255,255,255,.3)}
+    .filter-reset-btn{font-size:.6rem;font-weight:900;text-transform:uppercase;letter-spacing:.15em;color:var(--muted);cursor:pointer;background:none;border:1px solid #e2e8f0;padding:.2rem .75rem;border-radius:9999px;transition:all .2s;font-family:inherit}
+    .filter-reset-btn:hover{border-color:var(--teal);color:var(--teal)}
+  </style>
+</head>
+<body>
+
+<!-- NOTIFICATION DRAWER -->
+<div class="notif-drawer-overlay" id="notif-overlay" onclick="closeNotifDrawer()"></div>
+<div id="notif-drawer">
+  <div class="notif-drawer-header">
+    <span class="notif-drawer-title">🔔 Live Notifications</span>
+    <button class="notif-drawer-close" onclick="closeNotifDrawer()">✕</button>
+  </div>
+  <div class="notif-drawer-body" id="notif-drawer-body">
+    <div class="notif-empty"><span class="notif-empty-icon">🔔</span><div class="notif-empty-text">Loading...</div></div>
+  </div>
+</div>
+
+<!-- SPLASH -->
+<div id="screen-splash">
+  <h1 id="splash-title">PPC</h1>
+  <p id="splash-sub">Click to start</p>
+</div>
+
+<!-- ROLE -->
+<div id="screen-role" class="hidden">
+  <div class="card-box">
+    <h2 class="card-title">System Access</h2>
+    <div class="role-cards">
+      <button class="role-card" onclick="selectRole('admin')"><span class="role-icon">🛡️</span><span class="role-label">Admin</span></button>
+      <button class="role-card" onclick="selectRole('user')"><span class="role-icon">👷</span><span class="role-label">Operator</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- AUTH -->
+<div id="screen-auth" class="hidden">
+  <div class="card-box auth-box">
+    <div style="text-align:center;margin-top:1rem">
+      <h2 class="card-title" id="auth-title">Sign In</h2>
+      <p class="auth-subtitle" id="auth-subtitle">Admin Terminal</p>
+    </div>
+    <form class="auth-form" onsubmit="handleAuth(event)">
+      <div class="input-wrap" id="company-wrap">
+        <span class="input-icon">🏢</span>
+        <input class="auth-input" name="companyName" id="input-company" placeholder="Company Name" autocomplete="off"/>
+      </div>
+      <div class="input-wrap" id="token-wrap">
+        <span class="input-icon">🔑</span>
+        <input class="auth-input" name="token" id="input-token" type="password" placeholder="Admin API Key"/>
+      </div>
+      <button type="submit" class="auth-btn">Sign In</button>
+    </form>
+    <p class="auth-toggle" id="auth-toggle" onclick="toggleMode()">Register new company</p>
+  </div>
+  <p class="back-link" onclick="showScreen('role')">← Back</p>
+</div>
+
+<!-- GRID (harta) -->
+<div id="screen-grid" class="hidden">
+  <nav class="navbar">
+    <div class="navbar-brand" style="font-size:1.6rem;font-weight:900;font-style:italic;letter-spacing:-.04em;color:white">PPC</div>
+    <div style="display:flex;gap:.75rem;align-items:center">
+      <button class="nav-btn" onclick="askDaysAndShowReport()">📊 Operational Report</button>
+      <div style="position:relative">
+        <button class="profile-btn" onclick="toggleDropdown('grid-dd')">
+          👤 <span id="grid-role-label">User</span> <span class="chevron" id="grid-chevron">▾</span>
+        </button>
+        <div class="dropdown hidden" id="grid-dd">
+          <div class="dropdown-header">
+            <div class="dropdown-label">Active Session</div>
+            <div class="dropdown-name" id="grid-session-name">PPC Monitor</div>
+          </div>
+          <div id="grid-admin-item" class="hidden">
+            <button class="dropdown-item" onclick="showScreen('admin')">
+              <div class="dropdown-item-icon">⚙️</div>
+              <div><div class="dropdown-item-text">Administration</div></div>
+            </button>
+          </div>
+          <button class="dropdown-item" onclick="openNotifDrawer()">
+            <div class="dropdown-item-icon">🔔</div>
+            <div style="flex:1"><div class="dropdown-item-text">Notifications <span class="notif-count-badge hidden" id="notif-badge">0</span></div></div>
+            <div class="pulse-dot"></div>
+          </button>
+          <div class="dropdown-divider"></div>
+          <button class="dropdown-item danger" onclick="logout()">
+            <div class="dropdown-item-icon">🚪</div>
+            <div class="dropdown-item-text">Sign Out</div>
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+  <div class="page-content">
+    <div class="section-header">
+      <div class="section-title">Technical Monitoring</div>
+      <div class="section-sub">Click a turbine for full details · Click status badges to filter</div>
+    </div>
+    <!-- Search bar -->
+    <div style="position:relative;margin-bottom:2rem">
+      <div class="search-bar-wrap">
+        <span style="font-size:1.1rem;color:var(--muted)">🔍</span>
+        <input id="search-input" placeholder="Search turbine by ID (e.g. TID05CB19DC)..." autocomplete="off"
+          oninput="onSearchInput()" onkeydown="if(event.key==='Enter')searchAndGo()"/>
+        <button class="search-bar-btn" onclick="searchAndGo()">Search</button>
+      </div>
+      <div id="search-drop" class="search-results-drop hidden"></div>
+    </div>
+    <div class="parks-grid" id="parks-container"></div>
+  </div>
+</div>
+
+<!-- REPORT -->
+<div id="screen-report" class="hidden">
+  <nav class="navbar">
+    <button class="nav-btn" onclick="showScreen('grid')">← Back to Map</button>
+    <span class="navbar-brand" style="font-size:1.1rem;font-weight:900;font-style:italic">PPC</span>
+    <div style="position:relative">
+      <button class="profile-btn" onclick="toggleDropdown('rep-dd')">
+        👤 <span id="rep-role-label">User</span> <span class="chevron" id="rep-chevron">▾</span>
+      </button>
+      <div class="dropdown hidden" id="rep-dd">
+        <div class="dropdown-divider"></div>
+        <button class="dropdown-item danger" onclick="logout()">
+          <div class="dropdown-item-icon">🚪</div>
+          <div class="dropdown-item-text">Sign Out</div>
+        </button>
+      </div>
+    </div>
+  </nav>
+  <div class="rep-content">
+    <div class="rep-header">
+      <div>
+        <h1>Operational Report</h1>
+        <p id="rep-subtitle">Loading...</p>
+      </div>
+      <div id="rep-days-badge" class="rep-days-badge hidden">1 Day</div>
+    </div>
+    <div id="rep-body">
+      <div class="rep-loading"><span class="rep-spinner">⚙️</span><div class="rep-loading-text">Loading data...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- TURBINE DETAIL -->
+<div id="screen-turbine" class="hidden">
+  <nav class="navbar">
+    <button class="nav-btn" id="turb-back-btn" onclick="showScreen('grid')">← Back to Map</button>
+    <span class="navbar-brand" style="font-size:1.1rem;font-weight:900;font-style:italic">PPC</span>
+    <div style="position:relative">
+      <button class="profile-btn" onclick="toggleDropdown('turb-dd')">
+        👤 <span id="turb-role-label">User</span> <span class="chevron" id="turb-chevron">▾</span>
+      </button>
+      <div class="dropdown hidden" id="turb-dd">
+        <div class="dropdown-divider"></div>
+        <button class="dropdown-item danger" onclick="logout()">
+          <div class="dropdown-item-icon">🚪</div>
+          <div class="dropdown-item-text">Sign Out</div>
+        </button>
+      </div>
+    </div>
+  </nav>
+  <div class="turb-content" id="turb-body">
+    <div class="rep-loading"><span class="rep-spinner">⚙️</span><div class="rep-loading-text">Loading turbine data...</div></div>
+  </div>
+</div>
+
+<!-- ADMIN -->
+<div id="screen-admin" class="hidden">
+  <nav class="navbar"><div class="navbar-brand" style="font-size:1.6rem;font-weight:900;font-style:italic">PPC</div></nav>
+  <div class="admin-content">
+    <div class="admin-header">
+      <div><div class="admin-title">Administration</div><div class="admin-sub">Partner Companies</div></div>
+      <button class="back-btn" onclick="showScreen('grid')">← Back</button>
+    </div>
+    <div class="admin-table-wrap">
+      <div id="admin-loading" class="loading-text">Loading...</div>
+      <table class="admin-table hidden" id="admin-table">
+        <thead><tr><th>Company</th><th>Assigned Parks</th><th>Status</th></tr></thead>
+        <tbody id="admin-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ── STATE ──────────────────────────────────────────────────────────────────
+let currentRole   = null, assignedParks = [], isLoginMode = true;
+let leafletMaps   = {}, reportDays = 1;
+let currentTurb   = null, currentPark = null;
+
+// parkMarkers[parkId][color] = [L.Marker, ...]
+const parkMarkers = {};
+// parkTurbines[parkId] = [...turbine objects] — cached for search
+const parkTurbines = {};
+// activeFilter[parkId] = 'GREEN'|'YELLOW'|'ORANGE'|'RED'|null
+const activeFilter = {};
+
+const API = 'http://localhost:8080/api';
+const PARK_NAMES = {
+  "WP37BE765B":"Wind Park Buzău","WP76E33517":"Wind Park Vaslui",
+  "WP98FA99B8":"Wind Park Casimcea","WPBC408F47":"Wind Park Constanța"
+};
+const STATUS_COLORS = {GREEN:'#10b981',YELLOW:'#f59e0b',RED:'#ef4444',ORANGE:'#f97316'};
+const SCREENS = ['splash','role','auth','grid','report','turbine','admin'];
+
+// ── NAVIGATION ──────────────────────────────────────────────────────────────
+function showScreen(name) {
+  SCREENS.forEach(s=>document.getElementById('screen-'+s).classList.toggle('hidden',s!==name));
+  document.querySelectorAll('.dropdown').forEach(d=>d.classList.add('hidden'));
+  document.querySelectorAll('.chevron').forEach(c=>c.classList.remove('open'));
+  const sd=document.getElementById('search-drop'); if(sd) sd.classList.add('hidden');
+  if(name==='grid')    renderGrid();
+  if(name==='admin')   loadAdmin();
+}
+
+// ── SPLASH ──────────────────────────────────────────────────────────────────
+document.getElementById('screen-splash').addEventListener('click',()=>{
+  spawnParticles(); setTimeout(()=>showScreen('role'),900);
+});
+function spawnParticles(){
+  const cx=window.innerWidth/2,cy=window.innerHeight/2;
+  const colors=['#77B5B6','#0ea5e9','#38bdf8','#06b6d4','#22d3ee'];
+  const cont=document.getElementById('screen-splash');
+  for(let i=0;i<300;i++){
+    const a=Math.random()*Math.PI*2,v=50+Math.random()*250;
+    const tx=Math.cos(a)*v,ty=Math.sin(a)*v,sz=Math.random()+1;
+    const color=colors[Math.floor(Math.random()*colors.length)],dur=0.6+Math.random()*.4;
+    const p=document.createElement('div');p.className='particle';
+    p.style.cssText=`left:${cx}px;top:${cy}px;width:${sz}px;height:${sz}px;background:${color};box-shadow:0 0 10px ${color};--tx:${tx}px;--ty:${ty}px;animation:explode ${dur}s cubic-bezier(.1,.9,.2,1) forwards`;
+    cont.appendChild(p);setTimeout(()=>p.remove(),dur*1000+100);
+  }
+}
+
+// ── AUTH ────────────────────────────────────────────────────────────────────
+function selectRole(r){currentRole=r;isLoginMode=true;updateAuthUI();showScreen('auth');}
+function updateAuthUI(){
+  const a=currentRole==='admin';
+  document.getElementById('auth-title').textContent=isLoginMode?'Sign In':'Register';
+  document.getElementById('auth-subtitle').textContent=a?'Admin Terminal':'Operator Terminal';
+  document.getElementById('company-wrap').classList.toggle('hidden',a);
+  document.getElementById('input-company').required=!a;
+  document.getElementById('token-wrap').classList.toggle('hidden',!isLoginMode);
+  document.getElementById('input-token').placeholder=a?'Admin API Key':'Operator Token';
+  document.getElementById('input-token').required=isLoginMode;
+  const tog=document.getElementById('auth-toggle');
+  tog.classList.toggle('hidden',a);
+  tog.textContent=isLoginMode?'Register new company':'I already have a token';
+  document.getElementById('input-company').value='';
+  document.getElementById('input-token').value='';
+}
+function toggleMode(){isLoginMode=!isLoginMode;updateAuthUI();}
+async function handleAuth(e){
+  e.preventDefault();
+  const company=document.getElementById('input-company').value;
+  const token=document.getElementById('input-token').value;
+  try{
+    if(isLoginMode){
+      if(currentRole==='admin'){
+        const d=await(await fetch(`${API}/auth`,{headers:{'X-API-KEY':token}})).json();
+        if(d.status==='success'){assignedParks=[];afterLogin();}else alert('Invalid API Key!');
+      } else {
+        const d=await(await fetch(`${API}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({companyName:company,token})})).json();
+        if(d.status==='success'){assignedParks=d.assignedParks||[];afterLogin();}else alert('Error: '+d.message);
+      }
+    } else {
+      const d=await(await fetch(`${API}/auth/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({companyName:company})})).json();
+      if(d.status==='success'){alert('🔑 Token:\n\n'+d.token+'\n\nSave it!');isLoginMode=true;updateAuthUI();}
+      else alert('Error: '+d.message);
+    }
+  }catch{alert('Spring Boot server is not running! (localhost:8080)');}
+}
+function afterLogin(){updateNavbars();showScreen('grid');}
+function updateNavbars(){
+  const a=currentRole==='admin',name=a?'PPC Control Room (Admin)':'PPC Monitor (Operator)';
+  ['grid','rep','turb'].forEach(p=>{
+    const rl=document.getElementById(p+'-role-label');if(rl)rl.textContent=currentRole||'User';
+  });
+  document.getElementById('grid-session-name').textContent=name;
+  const gai=document.getElementById('grid-admin-item');if(gai)gai.classList.toggle('hidden',!a);
+}
+function logout(){
+  currentRole=null;assignedParks=[];
+  Object.values(leafletMaps).forEach(m=>m.remove());
+  leafletMaps={};
+  Object.keys(parkMarkers).forEach(k=>delete parkMarkers[k]);
+  Object.keys(parkTurbines).forEach(k=>delete parkTurbines[k]);
+  Object.keys(activeFilter).forEach(k=>delete activeFilter[k]);
+  showScreen('splash');
+}
+
+// ── DROPDOWNS ──────────────────────────────────────────────────────────────
+function toggleDropdown(id){
+  const dd=document.getElementById(id),open=!dd.classList.contains('hidden');
+  document.querySelectorAll('.dropdown').forEach(d=>d.classList.add('hidden'));
+  document.querySelectorAll('.chevron').forEach(c=>c.classList.remove('open'));
+  if(!open){dd.classList.remove('hidden');const ch=document.getElementById(id.replace('-dd','-chevron'));if(ch)ch.classList.add('open');}
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.profile-btn')&&!e.target.closest('.dropdown')){
+    document.querySelectorAll('.dropdown').forEach(d=>d.classList.add('hidden'));
+    document.querySelectorAll('.chevron').forEach(c=>c.classList.remove('open'));
+  }
+});
+
+// ── TURBINE ICON ────────────────────────────────────────────────────────────
+function makeTurbineIcon(color,risk){
+  const fill=STATUS_COLORS[color]||'#94a3b8';
+  const shadow=fill+'99';
+  const anim=color==='RED'?'animation:turbinePulse 1s infinite;':'';
+  return L.divIcon({
+    className:'',
+    html:`<div style="width:38px;height:38px;border-radius:50%;background:${fill};
+      box-shadow:0 0 14px ${shadow},0 2px 8px rgba(0,0,0,.3);
+      display:flex;align-items:center;justify-content:center;
+      border:3px solid white;cursor:pointer;${anim}">
+      <svg width="22" height="22" viewBox="0 0 100 100" fill="white" xmlns="http://www.w3.org/2000/svg">
+        <rect x="46" y="52" width="8" height="40" rx="3"/>
+        <ellipse cx="50" cy="28" rx="5" ry="22"/>
+        <ellipse cx="50" cy="28" rx="5" ry="22" transform="rotate(120 50 50)"/>
+        <ellipse cx="50" cy="28" rx="5" ry="22" transform="rotate(240 50 50)"/>
+        <circle cx="50" cy="50" r="7"/>
+      </svg></div>`,
+    iconSize:[38,38],iconAnchor:[19,19],popupAnchor:[0,-22]
+  });
+}
+
+// ── GRID + LEAFLET ──────────────────────────────────────────────────────────
+async function renderGrid(){
+  const parks=currentRole==='admin'?Object.keys(PARK_NAMES):(assignedParks.length?assignedParks:[]);
+  const container=document.getElementById('parks-container');
+  container.innerHTML='';
+  if(!parks.length){container.innerHTML='<div class="no-parks"><div class="no-parks-title">Nu ai parcuri alocate.</div></div>';return;}
+  parks.forEach(pid=>{
+    activeFilter[pid]=null;
+    const card=document.createElement('div');card.className='park-card';
+    card.innerHTML=`
+      <div class="park-card-header">
+        <div style="display:flex;align-items:center;gap:1rem">
+          <div style="background:var(--teal);color:white;padding:.5rem 1.5rem;border-radius:1rem;font-size:1.4rem;font-weight:900;font-family:monospace;letter-spacing:.06em">${pid}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.5rem">
+          <div class="park-stats" id="stats-${pid}"><span style="color:var(--muted);font-size:.7rem;font-weight:700">📡 Loading...</span></div>
+          <button class="filter-reset-btn hidden" id="reset-filter-${pid}" onclick="resetFilter('${pid}')">✕ Clear filter</button>
+        </div>
+      </div>
+      <div class="map-container" id="map-${pid}">
+        <div class="map-loading" id="loading-${pid}">📡 Loading turbines...</div>
+      </div>
+      <div class="map-legend" style="margin-top:1rem">
+        <span><span class="legend-dot" style="background:#10b981"></span>Active</span>
+        <span><span class="legend-dot" style="background:#f59e0b"></span>Maintenance</span>
+        <span><span class="legend-dot" style="background:#f97316"></span>No wind</span>
+        <span><span class="legend-dot" style="background:#ef4444"></span>Fault</span>
+      </div>`;
+    container.appendChild(card);
+    loadParkMap(pid);
+  });
+}
+
+async function loadParkMap(pid){
+  try{
+    const turbines=await(await fetch(`${API}/park/${pid}/map-turbines`)).json();
+    const loadEl=document.getElementById(`loading-${pid}`);
+    if(loadEl)loadEl.style.display='none';
+    if(!turbines.length){document.getElementById(`map-${pid}`).innerHTML='<div class="map-loading">Nu există date.</div>';return;}
+
+    // Cache turbines for search
+    parkTurbines[pid]=turbines;
+
+    const g=turbines.filter(t=>t.statusColor==='GREEN').length;
+    const y=turbines.filter(t=>t.statusColor==='YELLOW').length;
+    const o=turbines.filter(t=>t.statusColor==='ORANGE').length;
+    const r=turbines.filter(t=>t.statusColor==='RED').length;
+
+    // Stat chips — click to filter
+    document.getElementById(`stats-${pid}`).innerHTML=`
+      <span class="stat-chip stat-green" id="chip-GREEN-${pid}" onclick="toggleFilter('${pid}','GREEN')" title="Click to filter">🟢 ${g} Active</span>
+      <span class="stat-chip stat-yellow" id="chip-YELLOW-${pid}" onclick="toggleFilter('${pid}','YELLOW')" title="Click to filter">🟡 ${y} Maintenance</span>
+      <span class="stat-chip stat-orange" id="chip-ORANGE-${pid}" onclick="toggleFilter('${pid}','ORANGE')" title="Click to filter">🟠 ${o} No wind</span>
+      <span class="stat-chip stat-red" id="chip-RED-${pid}" onclick="toggleFilter('${pid}','RED')" title="Click to filter">🔴 ${r} Fault</span>`;
+
+    if(leafletMaps[pid]){leafletMaps[pid].remove();delete leafletMaps[pid];}
+    parkMarkers[pid]={GREEN:[],YELLOW:[],ORANGE:[],RED:[]};
+
+    const avgLat=turbines.reduce((s,t)=>s+t.lat,0)/turbines.length;
+    const avgLng=turbines.reduce((s,t)=>s+t.lng,0)/turbines.length;
+    const map=L.map(`map-${pid}`,{zoomControl:true}).setView([avgLat,avgLng],13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:18}).addTo(map);
+    leafletMaps[pid]=map;
+
+    turbines.forEach(t=>{
+      const color=t.statusColor||'GREEN';
+      const pw=t.actPwt!=null?Number(t.actPwt).toFixed(1)+' kW':'N/A';
+      const wnd=t.windSpeed!=null?Number(t.windSpeed).toFixed(1)+' m/s':'N/A';
+      const eff=t.efficiency!=null?Number(t.efficiency).toFixed(1)+'%':'N/A';
+      const risk=t.thermalRisk!=null?Number(t.thermalRisk).toFixed(0):null;
+      const marker=L.marker([t.lat,t.lng],{icon:makeTurbineIcon(color,risk)}).addTo(map);
+      marker.bindPopup(`<div style="min-width:220px;padding:4px">
+        <div class="popup-title">🌀 ${t.turbineId}</div>
+        <div class="popup-row"><span class="popup-key">Model</span><span class="popup-val">${t.model||'—'}</span></div>
+        <div class="popup-row"><span class="popup-key">Power</span><span class="popup-val">${pw}</span></div>
+        <div class="popup-row"><span class="popup-key">Wind</span><span class="popup-val">${wnd}</span></div>
+        <div class="popup-row"><span class="popup-key">Efficiency</span><span class="popup-val">${eff}</span></div>
+        ${risk!=null?`<div class="popup-row"><span class="popup-key">Thermal risk</span><span class="popup-val" style="color:${risk>67?'#ef4444':risk>33?'#f59e0b':'#10b981'}">${risk}/100</span></div>`:''}
+        <div style="margin-top:.5rem;display:flex;gap:.5rem;flex-wrap:wrap">
+          <span class="popup-badge badge-${color}">${color}</span>
+          <span class="popup-badge" style="background:#e0f2fe;color:#0369a1;cursor:pointer"
+            onclick="openTurbineDetail('${t.turbineId}','${pid}')">📊 Details</span>
+        </div>
+      </div>`,{maxWidth:270});
+      // Store marker by color for filtering
+      if(!parkMarkers[pid][color]) parkMarkers[pid][color]=[];
+      parkMarkers[pid][color].push(marker);
+    });
+    map.fitBounds(turbines.map(t=>[t.lat,t.lng]),{padding:[40,40]});
+  }catch(err){
+    const el=document.getElementById(`loading-${pid}`);
+    if(el)el.textContent='⚠️ Error. Check Spring Boot on localhost:8080';
+  }
+}
+
+// ── FILTER BY COLOR ─────────────────────────────────────────────────────────
+function toggleFilter(pid, color){
+  const current=activeFilter[pid];
+  const newFilter=current===color?null:color;
+  activeFilter[pid]=newFilter;
+  applyFilter(pid);
+  // Update chip styles
+  ['GREEN','YELLOW','ORANGE','RED'].forEach(c=>{
+    const chip=document.getElementById(`chip-${c}-${pid}`);
+    if(chip) chip.classList.toggle('active-filter', c===newFilter);
+  });
+  // Show/hide reset btn
+  const rb=document.getElementById(`reset-filter-${pid}`);
+  if(rb) rb.classList.toggle('hidden', !newFilter);
+}
+
+function applyFilter(pid){
+  const filter=activeFilter[pid];
+  const map=leafletMaps[pid];
+  if(!map||!parkMarkers[pid]) return;
+  ['GREEN','YELLOW','ORANGE','RED'].forEach(c=>{
+    (parkMarkers[pid][c]||[]).forEach(m=>{
+      if(!filter || c===filter) { if(!map.hasLayer(m)) m.addTo(map); }
+      else { if(map.hasLayer(m)) map.removeLayer(m); }
+    });
+  });
+}
+
+function resetFilter(pid){
+  activeFilter[pid]=null;
+  applyFilter(pid);
+  ['GREEN','YELLOW','ORANGE','RED'].forEach(c=>{
+    const chip=document.getElementById(`chip-${c}-${pid}`);
+    if(chip) chip.classList.remove('active-filter');
+  });
+  const rb=document.getElementById(`reset-filter-${pid}`);
+  if(rb) rb.classList.add('hidden');
+}
+
+// ── SEARCH ──────────────────────────────────────────────────────────────────
+function onSearchInput(){
+  const q=document.getElementById('search-input').value.trim().toUpperCase();
+  const drop=document.getElementById('search-drop');
+  if(q.length<3){drop.classList.add('hidden');return;}
+  const results=[];
+  Object.entries(parkTurbines).forEach(([pid,turbines])=>{
+    turbines.forEach(t=>{
+      if(t.turbineId.toUpperCase().includes(q)) results.push({...t,pid});
+    });
+  });
+  if(!results.length){
+    drop.innerHTML='<div class="search-no-result">No turbine found</div>';
+    drop.classList.remove('hidden');return;
+  }
+  drop.innerHTML=results.slice(0,8).map(r=>{
+    const sc=r.statusColor||'GREEN';
+    const dot={GREEN:'🟢',YELLOW:'🟡',ORANGE:'🟠',RED:'🔴'}[sc]||'⚪';
+    return `<div class="search-result-item" onclick="searchSelectTurbine('${r.turbineId}','${r.pid}')">
+      <div>
+        <div class="search-result-id">${dot} ${r.turbineId}</div>
+        <div class="search-result-park">${PARK_NAMES[r.pid]||r.pid} · ${r.model||'—'}</div>
+      </div>
+      <div style="font-size:.7rem;font-weight:900;color:${STATUS_COLORS[sc]}">${r.actPwt!=null?Number(r.actPwt).toFixed(0)+' kW':'—'}</div>
+    </div>`;
+  }).join('');
+  drop.classList.remove('hidden');
+}
+
+function searchAndGo(){
+  const q=document.getElementById('search-input').value.trim().toUpperCase();
+  if(!q) return;
+  for(const [pid,turbines] of Object.entries(parkTurbines)){
+    const found=turbines.find(t=>t.turbineId.toUpperCase()===q||t.turbineId.toUpperCase().includes(q));
+    if(found){searchSelectTurbine(found.turbineId,pid);return;}
+  }
+  alert(`Turbine "${q}" not found. Make sure the map has fully loaded.`);
+}
+
+function searchSelectTurbine(turbineId, pid){
+  document.getElementById('search-input').value=turbineId;
+  document.getElementById('search-drop').classList.add('hidden');
+  openTurbineDetail(turbineId, pid);
+}
+
+// Close search dropdown when clicking outside
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.search-bar-wrap')&&!e.target.closest('.search-results-drop')){
+    const sd=document.getElementById('search-drop');if(sd)sd.classList.add('hidden');
+  }
+});
+
+// ── TURBINE DETAIL ──────────────────────────────────────────────────────────
+async function openTurbineDetail(turbineId, parkId){
+  currentTurb=turbineId; currentPark=parkId;
+  document.getElementById('turb-body').innerHTML=
+    '<div class="rep-loading"><span class="rep-spinner">⚙️</span><div class="rep-loading-text">Loading turbine...</div></div>';
+  showScreen('turbine');
+  try{
+    const data=await(await fetch(`${API}/turbine/${turbineId}?park=${parkId}&days=${reportDays||1}`)).json();
+    renderTurbineDetail(data);
+  }catch(e){
+    document.getElementById('turb-body').innerHTML='<div class="rep-loading"><span style="font-size:3rem">⚠️</span><div class="rep-loading-text">Failed to load.</div></div>';
+  }
+}
+
+function riskColor(v){return v==null?'#94a3b8':v>67?'#ef4444':v>33?'#f59e0b':'#10b981';}
+function riskLabel(v){return v==null?'—':v>67?'CRITIC':v>33?'ATENȚIE':'NORMAL';}
+
+function renderTurbineDetail(d){
+  const s=d.stats||{}, live=d.live||{}, temps=d.temperatures||{};
+  const sc=d.statusColor||'GREEN';
+  const risk=temps.thermalRisk;
+
+  // Semicircle gauge SVG
+  const rDeg = risk!=null ? Math.min(risk/100*180,180) : 0;
+  const rRad = (rDeg-90)*Math.PI/180;
+  const cx=70,cy=70,r=55;
+  const ex=cx+r*Math.cos(rRad), ey=cy+r*Math.sin(rRad);
+  const gaugeColor=riskColor(risk);
+
+  document.getElementById('turb-body').innerHTML=`
+    <div class="turb-header">
+      <div>
+        <div class="turb-name">${d.turbineId||'—'}</div>
+        <div class="turb-meta">Model: ${d.model||'—'} &nbsp;·&nbsp; Nominal: ${d.nominalPowerKw||'—'} kW &nbsp;·&nbsp; Last update: ${(d.lastTimestamp||'').slice(0,16)}</div>
+      </div>
+      <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap">
+        <span class="status-pill pill-${sc}" style="font-size:.85rem;padding:.4rem 1.25rem">${sc}</span>
+        ${d.isAnomaly?`<span style="background:#fee2e2;color:#dc2626;padding:.4rem 1rem;border-radius:9999px;font-size:.7rem;font-weight:900">⚠️ ${d.anomalyReason||'Anomaly'}</span>`:''}
+      </div>
+    </div>
+
+    <!-- KPI Row -->
+    <div class="kpi-grid" style="margin-bottom:1.5rem">
+      <div class="kpi-card"><div class="kpi-value kpi-teal">${(s.productionMwh||0).toFixed(3)}</div><div class="kpi-label">MWh Produced (${s.days||1}d)</div></div>
+      <div class="kpi-card"><div class="kpi-value" style="color:${(s.availabilityPct||0)>=90?'#10b981':(s.availabilityPct||0)>=70?'#f59e0b':'#ef4444'}">${(s.availabilityPct||0).toFixed(1)}%</div><div class="kpi-label">Availability</div></div>
+      <div class="kpi-card"><div class="kpi-value" style="color:#3b82f6">${(s.avgEfficiencyPct||0).toFixed(1)}%</div><div class="kpi-label">Avg Efficiency</div></div>
+      <div class="kpi-card"><div class="kpi-value" style="color:#8b5cf6">${(s.capacityFactorPct||0).toFixed(1)}%</div><div class="kpi-label">Capacity Factor</div></div>
+      <div class="kpi-card"><div class="kpi-value kpi-green">${(s.maxPowerKw||0).toFixed(0)}</div><div class="kpi-label">Max Power (kW)</div></div>
+      <div class="kpi-card"><div class="kpi-value" style="color:#0ea5e9">${(s.avgWindMs||0).toFixed(2)}</div><div class="kpi-label">Avg Wind (m/s)</div></div>
+    </div>
+
+    <!-- Cards row -->
+    <div class="turb-grid">
+
+      <!-- Live metrics -->
+      <div class="turb-card">
+        <div class="turb-card-title">⚡ Live Values</div>
+        <div class="metric-row"><span class="metric-key">Active power</span><span class="metric-val">${live.actPwt!=null?Number(live.actPwt).toFixed(1)+' kW':'—'}</span></div>
+        <div class="metric-row"><span class="metric-key">OEM theoretical power</span><span class="metric-val">${live.theoretical!=null?Number(live.theoretical).toFixed(1)+' kW':'—'}</span></div>
+        <div class="metric-row"><span class="metric-key">Wind speed</span><span class="metric-val">${live.windSpeed!=null?Number(live.windSpeed).toFixed(2)+' m/s':'—'}</span></div>
+        <div class="metric-row"><span class="metric-key">Efficiency</span><span class="metric-val">${live.efficiencyPct!=null?Number(live.efficiencyPct).toFixed(1)+'%':'—'}</span></div>
+        ${d.sensorWarnings?`<div style="margin-top:1rem;padding:.75rem;background:#fef9c3;border-radius:.75rem;font-size:.7rem;font-weight:700;color:#92400e">${d.sensorWarnings}</div>`:''}
+      </div>
+
+      <!-- Thermal risk gauge -->
+      <div class="turb-card">
+        <div class="turb-card-title">🌡️ Thermal Risk Index</div>
+        <div class="risk-gauge">
+          <svg viewBox="0 0 140 80">
+            <path d="M15,70 A55,55 0 0,1 125,70" fill="none" stroke="#e2e8f0" stroke-width="12" stroke-linecap="round"/>
+            <path d="M15,70 A55,55 0 0,1 70,15" fill="none" stroke="#10b981" stroke-width="12" stroke-linecap="round" opacity=".3"/>
+            <path d="M70,15 A55,55 0 0,1 105,25" fill="none" stroke="#f59e0b" stroke-width="12" stroke-linecap="round" opacity=".3"/>
+            <path d="M105,25 A55,55 0 0,1 125,70" fill="none" stroke="#ef4444" stroke-width="12" stroke-linecap="round" opacity=".3"/>
+            ${risk!=null?`<line x1="${cx}" y1="${cy}" x2="${ex}" y2="${ey}" stroke="${gaugeColor}" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="${cx}" cy="${cy}" r="5" fill="${gaugeColor}"/>`:''}
+          </svg>
+          <div class="risk-score" style="color:${gaugeColor}">${risk!=null?Math.round(risk):'—'}</div>
+        </div>
+        <div class="risk-label" style="color:${gaugeColor}">${riskLabel(risk)}</div>
+        <div style="margin-top:1.25rem">
+          ${['conv_t','gearbox_t','gen1_t','transformer_t','turbine_t'].map(k=>{
+            const v=temps[k]; if(v==null) return '';
+            const thresholds={conv_t:[45,60,75],gearbox_t:[55,70,85],gen1_t:[65,80,95],transformer_t:[55,70,85],turbine_t:[35,50,60]};
+            const [nom,warn,crit]=thresholds[k]||[50,70,90];
+            const pct=Math.min(v/crit*100,100);
+            const col=v<=nom?'#10b981':v<=warn?'#f59e0b':'#ef4444';
+            const labels={conv_t:'Converter',gearbox_t:'Gearbox',gen1_t:'Generator',transformer_t:'Transformer',turbine_t:'Ambient'};
+            return `<div class="temp-row">
+              <span class="temp-name">${labels[k]}</span>
+              <div class="temp-bar-wrap"><div class="temp-bar"><div class="temp-fill" style="width:${pct}%;background:${col}"></div></div></div>
+              <span class="temp-val" style="color:${col}">${Number(v).toFixed(1)}°C</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- Status distribution -->
+      <div class="turb-card">
+        <div class="turb-card-title">📊 Status Distribution (${s.days||1}d)</div>
+        ${['minGreen','minYellow','minOrange','minRed'].map((k,i)=>{
+          const labels=['Active','Maintenance','No wind','Fault'];
+          const colors=['#10b981','#f59e0b','#f97316','#ef4444'];
+          const val=s[k]||0, total=s.totalMin||1;
+          const pct=(val/total*100).toFixed(1);
+          return `<div class="metric-row">
+            <span class="metric-key" style="display:flex;align-items:center;gap:.5rem">
+              <span style="width:10px;height:10px;border-radius:50%;background:${colors[i]};display:inline-block"></span>
+              ${labels[i]}
+            </span>
+            <span class="metric-val">${val} min <span style="color:var(--muted);font-size:.75rem;font-weight:700">(${pct}%)</span></span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <!-- Power time series chart -->
+    ${(d.timeSeries||[]).length>0?`
+    <div class="turb-card" style="margin-bottom:1.5rem">
+      <div class="turb-card-title">📈 Hourly Output (kW)</div>
+      <div class="chart-wrap" id="turb-power-chart"></div>
+      <div class="chart-legend-row">
+        <span><span class="cleg-dot" style="background:#3b82f6"></span>Active power (kW)</span>
+      </div>
+    </div>`:''}
+
+    <!-- Scatter wind vs power -->
+    ${(d.scatter||[]).length>0?`
+    <div class="turb-card" style="margin-bottom:1.5rem">
+      <div class="turb-card-title">🌬️ Scatter: Wind vs Power</div>
+      <div class="scatter-wrap" id="turb-scatter"></div>
+      <div class="chart-legend-row">
+        <span style="font-size:.65rem;color:var(--muted)">Each dot = 1 measurement (non-anomaly)</span>
+      </div>
+    </div>`:''}
+
+    <!-- Notifications -->
+    <div class="turb-card" style="margin-bottom:1.5rem">
+      <div class="turb-card-title">🔔 Notification & Anomaly History</div>
+      ${(d.notifications||[]).length===0?
+        '<p style="color:var(--muted);font-size:.8rem;font-weight:700;text-align:center;padding:1.5rem">No anomalies in selected period ✅</p>':
+        `<div style="max-height:280px;overflow-y:auto">
+          ${(d.notifications||[]).map(n=>`
+            <div class="notif-row">
+              <span class="notif-ts">${(n.timestamp||'').slice(0,16)}</span>
+              <span class="status-pill pill-${n.statusColor||'GREEN'}" style="font-size:.55rem">${n.statusColor||'—'}</span>
+              <span class="notif-msg">${n.reason||''} ${n.warnings?'<br><span style="color:#f59e0b;font-size:.65rem">'+n.warnings+'</span>':''}</span>
+            </div>`).join('')}
+        </div>`
+      }
+    </div>
+  `;
+
+  // Draw time series chart
+  if((d.timeSeries||[]).length>0) drawSimpleBarChart('turb-power-chart',d.timeSeries,'avgPower','#3b82f6');
+
+  // Draw scatter
+  if((d.scatter||[]).length>0) drawScatter('turb-scatter',d.scatter);
+}
+
+function drawSimpleBarChart(cid, data, key, color){
+  const c=document.getElementById(cid); if(!c) return;
+  c.innerHTML='';
+  const maxVal=Math.max(...data.map(d=>Math.abs(d[key]||0)),0.1);
+  data.forEach(d=>{
+    const pct=((d[key]||0)/maxVal)*100;
+    const g=document.createElement('div');g.className='chart-bar-g';
+    g.innerHTML=`<div class="chart-bar" style="height:${Math.max(pct*1.8,2)}px;background:${color};opacity:.85" title="${d[key]}kW"></div>
+                 <div class="chart-label">${(d.ora||'').slice(-5)}</div>`;
+    c.appendChild(g);
+  });
+}
+
+function drawScatter(cid, data){
+  const c=document.getElementById(cid); if(!c) return; c.innerHTML='';
+  const maxV=Math.max(...data.map(d=>d.v||0),1);
+  const maxP=Math.max(...data.map(d=>d.p||0),1);
+  const w=c.clientWidth||400, h=c.clientHeight||240;
+  data.forEach(d=>{
+    const left=(d.v/maxV)*(w-20)+10;
+    const top=h-(d.p/maxP)*(h-20)-10;
+    const dot=document.createElement('div');dot.className='scatter-dot';
+    dot.style.left=left+'px';dot.style.top=top+'px';
+    dot.title=`Wind: ${d.v} m/s | Power: ${d.p} kW`;
+    c.appendChild(dot);
+  });
+  c.insertAdjacentHTML('beforeend',`
+    <div style="position:absolute;bottom:2px;right:8px;font-size:.55rem;font-weight:700;color:#94a3b8">Wind (m/s) →</div>
+    <div style="position:absolute;top:4px;left:4px;font-size:.55rem;font-weight:700;color:#94a3b8;writing-mode:vertical-lr;transform:rotate(180deg)">← Power (kW)</div>
+  `);
+}
+
+// ── RAPORT OPERATIONAL ──────────────────────────────────────────────────────
+function askDaysAndShowReport(){
+  const d=prompt('Operational Report\nNumber of previous days to analyse:','1');
+  if(d===null||d==='') return;
+  reportDays=Math.max(1,parseInt(d)||1);
+  showScreen('report');
+  loadReport(reportDays);
+}
+
+async function loadReport(days){
+  const body=document.getElementById('rep-body');
+  body.innerHTML=`<div class="rep-loading"><span class="rep-spinner">⚙️</span><div class="rep-loading-text">Loading data for ${days} day${days>1?'s':''}...</div></div>`;
+  document.getElementById('rep-subtitle').textContent=`Analysis for the last ${days} day${days>1?'s':''}`;
+  const badge=document.getElementById('rep-days-badge');
+  badge.textContent=`${days} Day${days>1?'s':''}`;badge.classList.remove('hidden');
+
+  const parks=currentRole==='admin'?Object.keys(PARK_NAMES):(assignedParks.length?assignedParks:[]);
+  if(!parks.length){body.innerHTML='<div class="no-parks"><div class="no-parks-title">No parks assigned.</div></div>';return;}
+
+  try{
+    const res=await fetch(`${API}/report?days=${days}&parks=${parks.join(',')}`);
+    const data=await res.json();
+    if(!data.length){body.innerHTML='<div class="no-parks"><div class="no-parks-title">No data for this period.</div></div>';return;}
+    body.innerHTML='';
+    data.forEach(pr=>{body.appendChild(buildParkReport(pr));});
+  }catch(err){
+    body.innerHTML=`<div class="rep-loading"><span style="font-size:3rem">⚠️</span><div class="rep-loading-text">Error. Check Spring Boot on localhost:8080</div></div>`;
+  }
+}
+
+function buildParkReport(pr){
+  const el=document.createElement('div'); el.className='park-report';
+  const s=pr.stats||{}, turbines=pr.turbines||[], windChart=pr.windChart||[];
+  const pc=pr.powerCurve||[], wd=pr.windDist||[];
+  const availColor=(s.avgAvailability||0)>=90?'var(--green)':(s.avgAvailability||0)>=70?'var(--yellow)':'var(--red)';
+
+  el.innerHTML=`
+    <div class="park-rep-header">
+      <div class="park-rep-name">${pr.parkName||pr.parkId}</div>
+      <div class="park-rep-id">ID: ${pr.parkId} · ${pr.days} day${pr.days>1?'s':''}</div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-value kpi-teal">${(s.totalMwh||0).toFixed(2)}</div><div class="kpi-label">MWh Produced</div></div>
+      <div class="kpi-card"><div class="kpi-value" style="color:${availColor}">${(s.avgAvailability||0).toFixed(1)}%</div><div class="kpi-label">Availability</div></div>
+      <div class="kpi-card"><div class="kpi-value" style="color:#3b82f6">${(s.avgWindMs||0).toFixed(2)}</div><div class="kpi-label">Avg Wind (m/s)</div></div>
+      <div class="kpi-card"><div class="kpi-value" style="color:#8b5cf6">${(s.maxPowerKw||0).toFixed(0)}</div><div class="kpi-label">Max Power (kW)</div></div>
+      <div class="kpi-card"><div class="kpi-value kpi-green">${s.greenCount||0}</div><div class="kpi-label">Active Turbines</div></div>
+      <div class="kpi-card"><div class="kpi-value kpi-yellow">${s.yellowCount||0}</div><div class="kpi-label">Maintenance</div></div>
+      <div class="kpi-card"><div class="kpi-value kpi-orange">${s.orangeCount||0}</div><div class="kpi-label">No Wind</div></div>
+      <div class="kpi-card"><div class="kpi-value kpi-red">${s.redCount||0}</div><div class="kpi-label">Fault</div></div>
+    </div>
+
+    <!-- Turbine table -->
+    <div class="rep-section">
+      <div class="rep-section-title">🌀 Turbine Detailed Report</div>
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead><tr>
+            <th>Turbine</th><th>Model</th><th>Production (MWh)</th>
+            <th>Max kW</th><th>Avg kW</th><th>Wind m/s</th>
+            <th>Efficiency</th><th>Availability</th><th>Status</th>
+          </tr></thead>
+          <tbody>
+            ${turbines.map(t=>{
+              const avail=t.availability_pct||0;
+              const ac=avail>=90?'#10b981':avail>=70?'#f59e0b':'#ef4444';
+              return `<tr onclick="openTurbineDetail('${t.turbine_id}','${pr.parkId}')">
+                <td class="mono">${t.turbine_id||'—'}</td>
+                <td><span style="font-size:.65rem;font-weight:900;color:var(--teal)">${t.model||'—'}</span></td>
+                <td><strong>${(t.productie_total_mwh||0).toFixed(3)}</strong></td>
+                <td>${(t.max_power_kw||0).toFixed(0)}</td>
+                <td>${(t.avg_power_kw||0).toFixed(0)}</td>
+                <td>${t.avg_wind_ms!=null?Number(t.avg_wind_ms).toFixed(2):'—'}</td>
+                <td>${t.avg_efficiency_pct!=null?Number(t.avg_efficiency_pct).toFixed(1)+'%':'—'}</td>
+                <td><div class="avail-bar-wrap">
+                  <div class="avail-bar"><div class="avail-bar-fill" style="width:${avail}%;background:${ac}"></div></div>
+                  <span style="font-size:.7rem;font-weight:900;min-width:42px;color:${ac}">${avail.toFixed(1)}%</span>
+                </div></td>
+                <td><span class="status-pill pill-${t.status_curent||'GREEN'}">${t.status_curent||'GREEN'}</span></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    ${windChart.length?`
+    <div class="rep-section">
+      <div class="rep-section-title">💨 Hourly Wind Speed (m/s)</div>
+      <div class="chart-wrap" id="wc-${pr.parkId}"></div>
+      <div class="chart-legend-row">
+        <span><span class="cleg-dot" style="background:#4299e1"></span>Avg wind speed (m/s)</span>
+      </div>
+    </div>`:''}
+
+    ${pc.length?`
+    <div class="rep-section">
+      <div class="rep-section-title">📈 Power Curve: Real vs OEM</div>
+      <div style="overflow-x:auto"><table class="data-table" style="max-width:600px">
+        <thead><tr><th>Wind speed (m/s)</th><th>Real power (kW)</th><th>OEM power (kW)</th><th>Difference</th></tr></thead>
+        <tbody>${pc.slice(0,20).map(p=>{
+          const diff=(p.realPower-p.theoreticalPower).toFixed(0);
+          const diffCol=diff<-20?'#ef4444':diff>20?'#10b981':'#64748b';
+          return `<tr><td>${p.windBin} m/s</td><td>${p.realPower}</td><td>${p.theoreticalPower}</td>
+            <td style="color:${diffCol};font-weight:900">${diff>0?'+':''}${diff} kW</td></tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    </div>`:''}
+
+    ${wd.length?`
+    <div class="rep-section">
+      <div class="rep-section-title">🌪️ Wind Distribution (histogram)</div>
+      <div class="chart-wrap" id="wd-${pr.parkId}" style="height:180px"></div>
+      <div class="chart-legend-row">
+        <span><span class="cleg-dot" style="background:#7c3aed"></span>Frequency (%)</span>
+      </div>
+    </div>`:''}
+  `;
+
+  setTimeout(()=>{
+    if(windChart.length) drawWindChart(`wc-${pr.parkId}`, windChart);
+    if(wd.length)        drawWindDist(`wd-${pr.parkId}`, wd);
+  },50);
+  return el;
+}
+
+function drawWindChart(cid, data){
+  const c=document.getElementById(cid); if(!c) return; c.innerHTML='';
+  const maxW=Math.max(...data.map(d=>d.avg_wind_ms||0),0.1);
+  data.forEach(d=>{
+    const pct=((d.avg_wind_ms||0)/maxW)*100;
+    const g=document.createElement('div');g.className='chart-bar-g';
+    g.innerHTML=`<div class="chart-bar" style="height:${Math.max(pct*1.8,2)}px;background:linear-gradient(180deg,#60a5fa,#3b82f6)" title="${d.avg_wind_ms}m/s | ${d.productie_mwh}MWh"></div>
+                 <div class="chart-label">${(d.ora||'').slice(-5)}</div>`;
+    c.appendChild(g);
+  });
+}
+
+function drawWindDist(cid, data){
+  const c=document.getElementById(cid); if(!c) return; c.innerHTML='';
+  const maxP=Math.max(...data.map(d=>d.pct||0),0.1);
+  data.forEach(d=>{
+    if(!d.pct) return;
+    const pct=(d.pct/maxP)*100;
+    const g=document.createElement('div');g.className='chart-bar-g';g.style.minWidth='28px';
+    g.innerHTML=`<div class="chart-bar" style="height:${Math.max(pct*1.5,2)}px;background:#7c3aed;opacity:.75" title="${d.bin}: ${d.pct}%"></div>
+                 <div class="chart-label">${d.bin}</div>`;
+    c.appendChild(g);
+  });
+}
+
+// ── NOTIFICATION DRAWER ─────────────────────────────────────────────────────
+async function openNotifDrawer(){
+  document.querySelectorAll('.dropdown').forEach(d=>d.classList.add('hidden'));
+  document.getElementById('notif-drawer').classList.add('open');
+  document.getElementById('notif-overlay').classList.add('open');
+  const body=document.getElementById('notif-drawer-body');
+  body.innerHTML='<div class="notif-empty"><span class="notif-empty-icon" style="animation:spin 1.5s linear infinite;display:block">⚙️</span><div class="notif-empty-text">Loading...</div></div>';
+  try{
+    // Admin gets all notifications (full DB); operators get standard limit
+    const headers=currentRole==='admin'?{'X-API-KEY':'PPC_HACK_2026_TOKEN'}:{};
+    const limit=currentRole==='admin'?500:100;
+    const res=await fetch(`${API}/notifications?limit=${limit}`,{headers});
+    const data=await res.json();
+    renderNotifDrawer(data);
+  }catch{
+    body.innerHTML='<div class="notif-empty"><span class="notif-empty-icon">⚠️</span><div class="notif-empty-text">Failed to load.</div></div>';
+  }
+}
+
+function closeNotifDrawer(){
+  document.getElementById('notif-drawer').classList.remove('open');
+  document.getElementById('notif-overlay').classList.remove('open');
+}
+
+function renderNotifDrawer(data){
+  const body=document.getElementById('notif-drawer-body');
+  const badge=document.getElementById('notif-badge');
+  if(!data||!data.length){
+    body.innerHTML='<div class="notif-empty"><span class="notif-empty-icon">✅</span><div class="notif-empty-text">No active notifications</div></div>';
+    if(badge){badge.textContent='0';badge.classList.add('hidden');}
+    return;
+  }
+  if(badge){badge.textContent=data.length;badge.classList.remove('hidden');}
+  const icons={RED:'🚨',YELLOW:'⚠️',ORANGE:'🌬️'};
+  body.innerHTML=`<div style="padding:.5rem .75rem 1rem;font-size:.65rem;font-weight:900;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)">${data.length} active alert${data.length>1?'s':''}</div>`
+    +data.map(n=>{
+      const sc=n.statusColor||'RED';
+      return `<div class="notif-item ${sc}" onclick="closeNotifDrawer();openTurbineDetail('${n.turbineId}','${n.parkId}')">
+        <div class="notif-item-icon ${sc}">${icons[sc]||'🔔'}</div>
+        <div style="flex:1;min-width:0">
+          <div class="notif-item-tid">${n.turbineId} · ${n.parkId}</div>
+          <div class="notif-item-reason">${n.anomalyReason||'Anomaly detected'}</div>
+          ${n.sensorWarnings?`<div class="notif-item-warn">${n.sensorWarnings.slice(0,80)}${n.sensorWarnings.length>80?'…':''}</div>`:''}
+          <div class="notif-item-ts">${(n.timestamp||'').slice(0,16)} · Power: ${n.actPwt!=null?Number(n.actPwt).toFixed(0)+' kW':'—'} · Wind: ${n.windSpeed!=null?Number(n.windSpeed).toFixed(1)+' m/s':'—'}</div>
+        </div>
+      </div>`;
+    }).join('');
+}
+
+// ── ADMIN ────────────────────────────────────────────────────────────────────
+async function loadAdmin(){
+  document.getElementById('admin-loading').classList.remove('hidden');
+  document.getElementById('admin-table').classList.add('hidden');
+  try{
+    const data=await(await fetch(`${API}/admin/companies`,{headers:{'X-API-KEY':'PPC_HACK_2026_TOKEN'}})).json();
+    const tbody=document.getElementById('admin-tbody');tbody.innerHTML='';
+    if(!data.length){
+      tbody.innerHTML='<tr><td colspan="3" style="text-align:center;padding:3rem;color:#cbd5e1;font-weight:900">No companies found</td></tr>';
+    } else {
+      data.forEach(c=>{
+        const parks=Array.isArray(c.assignedParks)?c.assignedParks.join(', '):(c.assignedParks||'—');
+        tbody.innerHTML+=`<tr><td><div class="company-name">${c.companyName}</div></td>
+          <td><div class="company-parks">${parks||'—'}</div></td>
+          <td><span class="badge-active">Active</span></td></tr>`;
+      });
+    }
+    document.getElementById('admin-loading').classList.add('hidden');
+    document.getElementById('admin-table').classList.remove('hidden');
+  }catch{document.getElementById('admin-loading').textContent='Failed to load.';}
+}
+</script>
+</body>
+</html>
