@@ -1,0 +1,6 @@
+pandas
+s3fs
+pyarrow
+numpy
+boto3
+dotenv

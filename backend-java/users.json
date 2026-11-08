@@ -1,0 +1,15 @@
+{
+    "companies" : [ {
+      "companyName" : "Enel Romania",
+      "token" : "PPC-ABC123XYZ456DEF7",
+      "assignedParks" : [ "WP37BE765B", "WP98FA99B8" ]
+    }, {
+      "companyName" : "Electrica SA",
+      "token" : "PPC-GHI789JKL012MNO3",
+      "assignedParks" : [ "WP76E33517", "WPBC408F47" ]
+    }, {
+      "companyName" : "University Politehnica of Bucharest",
+      "token" : "PPC-167004835C7746E5",
+      "assignedParks" : [ "WP37BE765B" ]
+    } ]
+  }
